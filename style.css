@@ -1,0 +1,226 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    background-color: #f4f7f6;
+    color: #333;
+    padding: 2rem 1rem;
+    box-sizing: border-box;
+}
+.card {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    text-align: center;
+    max-width: 1100px;
+    width: 95%;
+    box-sizing: border-box;
+    animation: slideUpFade 0.6s ease-out;
+}
+
+@keyframes slideUpFade {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Layout splitting */
+.layout-split {
+    display: flex;
+    gap: 2.5rem;
+    align-items: stretch;
+    width: 100%;
+    margin-top: 1rem;
+}
+.editor-section {
+    flex: 0 0 65%;
+    display: flex;
+    flex-direction: column;
+}
+.stats-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+@media (max-width: 850px) {
+    .layout-split {
+        flex-direction: column;
+    }
+    .editor-section, .stats-section {
+        flex: none;
+        width: 100%;
+    }
+}
+h1 {
+    margin-top: 0;
+    color: #2c3e50;
+}
+p {
+    font-size: 1.1rem;
+}
+
+#stats-container {
+    background: #f8faff;
+    border: 2px dashed #d0d3d4;
+    padding: 25px 20px;
+    border-radius: 12px;
+    text-align: left;
+    font-size: 1.1rem;
+    line-height: 1.8;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-sizing: border-box;
+}
+
+#stats-container.active-stats {
+    border: 2px solid #3498db;
+    background: white;
+    box-shadow: 0 8px 25px rgba(52, 152, 219, 0.15);
+    transform: scale(1.02);
+}
+
+#stats-container span {
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.stats-placeholder {
+    color: #95a5a6;
+    text-align: center;
+    font-style: italic;
+}
+
+.timer-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 1.5rem;
+}
+
+#time-input {
+    width: 70px;
+    padding: 8px;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    text-align: center;
+}
+
+#timer-display {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #e74c3c;
+    min-width: 70px;
+}
+
+#result-text {
+    margin-top: 1.5rem;
+    font-size: 1.1rem;
+    font-weight: 500;
+    line-height: 1.6;
+}
+
+#result-text.success {
+    color: #27ae60; /* A nice green */
+}
+
+#result-text.error {
+    color: #c0392b; /* A nice red */
+    text-align: left;
+}
+
+#result-text ul {
+    padding-left: 20px;
+    font-weight: normal;
+    margin-top: 0.5rem;
+}
+
+.wrong-word {
+    color: #c0392b;
+    text-decoration: line-through;
+    font-weight: bold;
+}
+
+.right-word {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+.input-group {
+    margin-bottom: 1.5rem;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.secondary-btn {
+    background-color: #95a5a6;
+}
+.secondary-btn:hover {
+    background-color: #7f8c8d;
+}
+
+textarea, .rich-textarea {
+    width: 100%;
+    min-height: 140px;
+    padding: 16px;
+    border: 2px solid #e1e8ed;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 1.05rem;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
+    background-color: #fdfdfd;
+}
+
+textarea:focus, .rich-textarea:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.15);
+    background-color: white;
+}
+
+.rich-textarea {
+    background: white;
+    text-align: left;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+
+.rich-textarea:empty:before {
+    content: attr(data-placeholder);
+    color: #888;
+}
+
+button {
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    background-color: #3498db;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+button:hover {
+    background-color: #2980b9;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(41, 128, 185, 0.3);
+}
+button:active {
+    transform: translateY(0);
+}

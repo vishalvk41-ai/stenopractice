@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sample Webpage</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="card">
+        <h1>Sentence Matcher</h1>
+        
+        <div class="timer-controls">
+            <label for="time-input">Timer (minutes):</label>
+            <input type="number" id="time-input" value="1" min="0.1" step="0.1">
+            <span id="timer-display">01:00</span>
+        </div>
+
+        <div class="layout-split">
+            <div class="editor-section">
+                <div class="input-group">
+                    <textarea id="text1" placeholder="Paste the first long sentence here..."></textarea>
+                </div>
+                <div class="input-group">
+                    <div id="text2" contenteditable="true" class="rich-textarea" data-placeholder="Paste the second long sentence here..."></div>
+                </div>
+
+                <div class="button-group">
+                    <button id="compare-btn">Compare / Finish Early</button>
+                    <button id="reset-btn" class="secondary-btn">Reset Test</button>
+                </div>
+                
+                <p id="result-text"></p>
+            </div>
+            
+            <div class="stats-section">
+                <div id="stats-container">
+                    <div class="stats-placeholder">Typing statistics will appear here after the test.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+</html>
