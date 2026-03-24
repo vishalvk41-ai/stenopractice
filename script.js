@@ -48,7 +48,7 @@ let isFinished = false;
 let latestWpm = 0;
 let latestAccuracy = 0;
 let latestMode = '';
-let cachedScores = null; // Holds our Firebase data to save quota
+let cachedScores = null; // Holds our minimal local data to save quota
 
 // Handle Authentication State
 onAuthStateChanged(auth, (user) => {
@@ -69,6 +69,7 @@ onAuthStateChanged(auth, (user) => {
         logoutBtn.style.display = 'none';
         chartContainer.style.display = 'none';
         saveScoreBtn.style.display = 'none';
+        cachedScores = null; // Clear memory cache on logout
     }
 });
 
@@ -320,9 +321,15 @@ saveScoreBtn.addEventListener('click', async () => {
     saveScoreBtn.disabled = true;
     const savedData = await saveStatsToFirebase(latestWpm, latestAccuracy, latestMode);
     
-    // If we have cached data, inject the new score directly to save a database read!
-    if (savedData && cachedScores) {
-        cachedScores.push(savedData);
+    // Inject the new score into our minimal browser LocalStorage cache
+    if (savedData) {
+        if (!cachedScores) {
+            const stored = localStorage.getItem(`steno_${currentUser.uid}`);
+            cachedScores = stored ? JSON.parse(stored) : [];
+        }
+        // Format: [wpm, accuracy, dateStr, timestampMs, mode]
+        cachedScores.push([savedData.wpm, savedData.accuracy, savedData.dateStr, savedData.timestamp.getTime(), savedData.mode]);
+        localStorage.setItem(`steno_${currentUser.uid}`, JSON.stringify(cachedScores));
     }
     saveScoreBtn.textContent = 'Saved!';
     
@@ -337,18 +344,39 @@ async function loadProgressData() {
     rawDataContent.innerHTML = 'Preparing data...';
 
     try {
-        if (!cachedScores) {
-            rawDataContent.innerHTML = 'Fetching data from Firebase...';
-            // Fetch ALL data from Firestore exactly once
-            const q = query(collection(db, "stenopractice"), orderBy("timestamp", "asc"));
-            const querySnapshot = await getDocs(q);
+        const CACHE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
+        const lastSyncStr = localStorage.getItem(`steno_sync_${currentUser.uid}`);
+        const lastSyncTime = lastSyncStr ? parseInt(lastSyncStr, 10) : 0;
+        const now = Date.now();
+        const isExpired = (now - lastSyncTime) > CACHE_EXPIRY_MS;
+
+        if (!cachedScores || isExpired) {
+            const stored = localStorage.getItem(`steno_${currentUser.uid}`);
             
-            cachedScores = [];
-            querySnapshot.forEach((doc) => {
-                cachedScores.push(doc.data());
-            });
+            // Use LocalStorage ONLY if it's not expired
+            if (stored && !isExpired) {
+                cachedScores = JSON.parse(stored);
+                console.log("Loaded minimal data from Browser LocalStorage!");
+            } else {
+                rawDataContent.innerHTML = 'Fetching fresh data from Firebase...';
+                // Fetch ALL data from Firestore to sync local cache
+                const q = query(collection(db, "stenopractice"), orderBy("timestamp", "asc"));
+                const querySnapshot = await getDocs(q);
+                
+                cachedScores = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const tMs = data.timestamp ? data.timestamp.toDate().getTime() : Date.now();
+                    // Format: [wpm, accuracy, dateStr, timestampMs, mode]
+                    cachedScores.push([data.wpm, data.accuracy, data.dateStr, tMs, data.mode || 'text']);
+                });
+                // Save the minimal array AND the new sync timestamp to Browser Storage
+                localStorage.setItem(`steno_${currentUser.uid}`, JSON.stringify(cachedScores));
+                localStorage.setItem(`steno_sync_${currentUser.uid}`, now.toString());
+                console.log("Synced fresh data from Firebase!");
+            }
         } else {
-            console.log("Using cached data, saved Firebase reads!");
+            console.log("Using active memory cache, saved reads!");
         }
 
         // Apply time filters locally instead of querying Firebase
@@ -357,12 +385,10 @@ async function loadProgressData() {
             const days = parseInt(timeFilter.value);
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - days);
+            const cutoffMs = cutoffDate.getTime();
             
-            filteredData = cachedScores.filter(data => {
-                if (!data.timestamp) return false;
-                // Convert Firebase timestamp to JavaScript Date for comparison
-                const recordDate = data.timestamp.toDate ? data.timestamp.toDate() : new Date(data.timestamp);
-                return recordDate >= cutoffDate;
+            filteredData = cachedScores.filter(dataTuple => {
+                return dataTuple[3] >= cutoffMs; // timestampMs is safely at index 3
             });
         }
 
@@ -374,11 +400,12 @@ async function loadProgressData() {
         if (filteredData.length === 0) {
             rawDataContent.innerHTML = 'No progress data found for this time period. Save a score first!';
         } else {
-            filteredData.forEach((data) => {
-                labels.push(data.dateStr || 'N/A');
-                wpmData.push(data.wpm);
-                accData.push(data.accuracy);
-                rawHtml += `<div>[${data.dateStr || 'N/A'}] - Mode: <span style="color:#f1c40f;">${data.mode}</span> | WPM: <span style="color:#2ecc71;">${data.wpm}</span> | Accuracy: <span style="color:#3498db;">${data.accuracy}%</span></div>`;
+            filteredData.forEach((dataTuple) => {
+                const [wpm, accuracy, dateStr, tMs, mode] = dataTuple;
+                labels.push(dateStr || 'N/A');
+                wpmData.push(wpm);
+                accData.push(accuracy);
+                rawHtml += `<div>[${dateStr || 'N/A'}] - Mode: <span style="color:#f1c40f;">${mode}</span> | WPM: <span style="color:#2ecc71;">${wpm}</span> | Accuracy: <span style="color:#3498db;">${accuracy}%</span></div>`;
             });
             rawDataContent.innerHTML = rawHtml;
         }
