@@ -6,6 +6,8 @@ const timeInput = document.getElementById('time-input');
 const timerDisplay = document.getElementById('timer-display');
 const resetBtn = document.getElementById('reset-btn');
 const statsContainer = document.getElementById('stats-container');
+const audioFileInput = document.getElementById('audio-file-input');
+const audioPlayer = document.getElementById('audio-player');
 
 let timerInterval = null;
 let timeRemaining = 0;
@@ -49,6 +51,19 @@ text2.addEventListener('input', () => {
     }
 });
 
+// Handle audio file selection
+audioFileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (file) {
+        const fileURL = URL.createObjectURL(file);
+        audioPlayer.src = fileURL;
+        audioPlayer.style.display = 'block';
+        text1.value = ''; // Clear text area
+        text1.disabled = true; // Disable text area to avoid confusion
+        text1.placeholder = 'Audio transcription mode active.';
+    }
+});
+
 function endTest() {
     clearInterval(timerInterval);
     isTyping = false;
@@ -68,6 +83,13 @@ resetBtn.addEventListener('click', () => {
     statsContainer.innerHTML = '<div class="stats-placeholder">Typing statistics will appear here after the test.</div>';
     statsContainer.classList.remove('active-stats');
     
+    // Reset audio player and text area
+    audioPlayer.src = '';
+    audioPlayer.style.display = 'none';
+    audioFileInput.value = ''; // Allows re-selecting the same file
+    text1.disabled = false;
+    text1.placeholder = 'Paste the first long sentence here...';
+
     let minutes = parseFloat(timeInput.value) || 1;
     timeRemaining = Math.floor(minutes * 60);
     updateTimerDisplay(timeRemaining);
@@ -82,8 +104,6 @@ compareBtn.addEventListener('click', () => {
 });
 
 function runComparison() {
-    // Get and clean the input sentences
-    const sentence1 = text1.value.trim();
     const sentence2 = text2.innerText.trim();
 
     // Clear previous results and styling
@@ -92,20 +112,55 @@ function runComparison() {
     statsContainer.innerHTML = '<div class="stats-placeholder">Typing statistics will appear here after the test.</div>';
     statsContainer.classList.remove('active-stats');
 
-    if (sentence1 === '' || sentence2 === '') {
+    // Check if we are in audio transcription mode.
+    const isAudioMode = audioPlayer.src && audioPlayer.src.startsWith('blob:');
+
+    if (isAudioMode) {
+        runAudioModeAnalysis(sentence2);
+    } else {
+        runTextCompareModeAnalysis(sentence2);
+    }
+
+    statsContainer.classList.add('active-stats');
+}
+
+function runAudioModeAnalysis(typedText) {
+    const words2 = typedText === '' ? [] : typedText.split(/\s+/);
+    const totalSecondsTaken = Math.floor(parseFloat(timeInput.value) * 60) - timeRemaining;
+    const minutesTaken = totalSecondsTaken > 0 ? totalSecondsTaken / 60 : 0;
+    const wpm = minutesTaken > 0 ? Math.round(words2.length / minutesTaken) : words2.length;
+
+    statsContainer.innerHTML = `
+        <h3 style="margin-top: 0; margin-bottom: 20px; color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px;">Your Transcription Results</h3>
+        <div style="display: flex; justify-content: space-between; max-width: 250px; margin-bottom: 10px;">Typed Words: <span>${words2.length}</span></div>
+        <div style="display: flex; justify-content: space-between; max-width: 250px; margin-top: 15px; padding-top: 15px; border-top: 2px dashed #ecf0f1; font-size: 1.3rem; font-weight: bold; color: #3498db;">
+            Speed: <span>${wpm} WPM</span>
+        </div>
+    `;
+    resultText.textContent = '✅ Transcription test finished!';
+    resultText.className = 'success';
+}
+
+function runTextCompareModeAnalysis(typedText) {
+    const sentence1 = text1.value.trim();
+
+    if (sentence1 === '' || typedText === '') {
         resultText.textContent = 'Please provide text in both boxes.';
         resultText.className = 'error';
         return;
     }
 
-    // Split sentences into words using a regex for whitespace
-    const words1 = sentence1 === '' ? [] : sentence1.split(/\s+/);
-    const words2 = sentence2 === '' ? [] : sentence2.split(/\s+/);
+    const words1 = sentence1.split(/\s+/);
+    const words2 = typedText.split(/\s+/);
 
     const maxLength = Math.max(words1.length, words2.length);
     let resultParts = [];
     let isPerfectMatch = true;
     let correctWordsCount = 0;
+
+    const totalSecondsTaken = Math.floor(parseFloat(timeInput.value) * 60) - timeRemaining;
+    const minutesTaken = totalSecondsTaken > 0 ? totalSecondsTaken / 60 : 0;
+    const wpm = minutesTaken > 0 ? Math.round(words2.length / minutesTaken) : words2.length;
 
     for (let i = 0; i < maxLength; i++) {
         const w1 = words1[i];
@@ -123,11 +178,7 @@ function runComparison() {
         }
     }
 
-    // Calculate and display statistics
     const accuracy = words2.length > 0 ? ((correctWordsCount / words2.length) * 100).toFixed(2) : 0;
-    const totalSecondsTaken = Math.floor(parseFloat(timeInput.value) * 60) - timeRemaining;
-    const minutesTaken = totalSecondsTaken > 0 ? totalSecondsTaken / 60 : 0;
-    const wpm = minutesTaken > 0 ? Math.round(words2.length / minutesTaken) : words2.length;
 
     statsContainer.innerHTML = `
         <h3 style="margin-top: 0; margin-bottom: 20px; color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px;">Your Results</h3>
@@ -139,9 +190,7 @@ function runComparison() {
             Speed: <span>${wpm} WPM</span>
         </div>
     `;
-    statsContainer.classList.add('active-stats');
 
-    // Output the formatted text directly into box 2
     text2.innerHTML = resultParts.join(' ');
 
     if (isPerfectMatch && words1.length === words2.length && words1.length > 0) {

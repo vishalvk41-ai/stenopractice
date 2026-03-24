@@ -6,21 +6,26 @@ body {
     justify-content: center;
     min-height: 100vh;
     margin: 0;
-    background-color: #f4f7f6;
+    background-color: #4dae72;
     color: #333;
-    padding: 2rem 1rem;
+    padding: 0.5rem;
     box-sizing: border-box;
+
 }
 .card {
-    background: white;
-    padding: 2.5rem;
+    background-color: #8b782f;
+    padding: 0.5rem 1rem;
     border-radius: 12px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
     text-align: center;
-    max-width: 1100px;
-    width: 95%;
+    max-width: 1600px;
+    width: 98%;
+    max-height: 98vh;
+    display: flex;
+    flex-direction: column;
     box-sizing: border-box;
     animation: slideUpFade 0.6s ease-out;
+    border: 6px solid #27ae60;
 }
 
 @keyframes slideUpFade {
@@ -31,20 +36,24 @@ body {
 /* Layout splitting */
 .layout-split {
     display: flex;
-    gap: 2.5rem;
+    gap: 1.5rem;
     align-items: stretch;
     width: 100%;
-    margin-top: 1rem;
+    margin-top: 0;
+    flex: 1;
+    min-height: 0;
 }
 .editor-section {
-    flex: 0 0 65%;
+    flex: 0 0 75%;
     display: flex;
     flex-direction: column;
+    min-height: 0;
 }
 .stats-section {
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;
 }
 
 @media (max-width: 850px) {
@@ -55,9 +64,15 @@ body {
         flex: none;
         width: 100%;
     }
+    .card {
+        max-height: none;
+    }
+    .input-group {
+        min-height: 350px;
+    }
 }
 h1 {
-    margin-top: 0;
+    margin: 0;
     color: #2c3e50;
 }
 p {
@@ -66,7 +81,7 @@ p {
 
 #stats-container {
     background: #f8faff;
-    border: 2px dashed #d0d3d4;
+    border: 3px dashed #dfe8ec;
     padding: 25px 20px;
     border-radius: 12px;
     text-align: left;
@@ -78,6 +93,7 @@ p {
     justify-content: center;
     transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     box-sizing: border-box;
+    overflow-y: auto;
 }
 
 #stats-container.active-stats {
@@ -98,12 +114,36 @@ p {
     font-style: italic;
 }
 
+.mode-section {
+    background-color: #ecf0f1;
+    border-radius: 8px;
+    padding: 8px 15px;
+    margin-bottom: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+    width: 100%;
+    box-sizing: border-box;
+    gap: 10px;
+}
+
+.file-label {
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+#audio-player {
+    width: 100%;
+    display: none; /* Hide until a file is loaded */
+}
+
 .timer-controls {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.5rem;
 }
 
 #time-input {
@@ -123,7 +163,7 @@ p {
 }
 
 #result-text {
-    margin-top: 1.5rem;
+    margin-top: 1rem;
     font-size: 1.1rem;
     font-weight: 500;
     line-height: 1.6;
@@ -156,7 +196,11 @@ p {
 }
 
 .input-group {
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.5rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .button-group {
@@ -174,16 +218,18 @@ p {
 
 textarea, .rich-textarea {
     width: 100%;
-    min-height: 140px;
-    padding: 16px;
-    border: 2px solid #e1e8ed;
+    flex: 1;
+    min-height: 150px;
+    padding: 12px 16px;
+    border: 3px solid #2d394d;
     border-radius: 8px;
     font-family: inherit;
-    font-size: 1.05rem;
-    resize: vertical;
+    font-size: 1.1rem;
+    resize: none;
     box-sizing: border-box;
     transition: all 0.3s ease;
     background-color: #fdfdfd;
+    overflow-y: auto;
 }
 
 textarea:focus, .rich-textarea:focus {
@@ -196,7 +242,6 @@ textarea:focus, .rich-textarea:focus {
 .rich-textarea {
     background: white;
     text-align: left;
-    overflow-y: auto;
     white-space: pre-wrap;
 }
 
