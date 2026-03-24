@@ -1,3 +1,35 @@
+// Firebase Imports
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB3H9c9iAO-XpSWxsRs9uO-gvm-MrazQxE",
+  authDomain: "stenopractice-66883.firebaseapp.com",
+  projectId: "stenopractice-66883",
+  storageBucket: "stenopractice-66883.firebasestorage.app",
+  messagingSenderId: "112045531767",
+  appId: "1:112045531767:web:0d387ccc5d0a35299b9c72",
+  measurementId: "G-DFV7R5Z522"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const provider = new GoogleAuthProvider();
+
+let currentUser = null;
+let progressChartInstance = null;
+
+const loginBtn = document.getElementById('login-btn');
+const logoutBtn = document.getElementById('logout-btn');
+const userInfo = document.getElementById('user-info');
+const progressBtn = document.getElementById('progress-btn');
+const saveScoreBtn = document.getElementById('save-score-btn');
+const chartContainer = document.getElementById('chart-container');
+const timeFilter = document.getElementById('time-filter');
+
 const text1 = document.getElementById('text1');
 const text2 = document.getElementById('text2');
 const compareBtn = document.getElementById('compare-btn');
@@ -13,6 +45,40 @@ let timerInterval = null;
 let timeRemaining = 0;
 let isTyping = false;
 let isFinished = false;
+let latestWpm = 0;
+let latestAccuracy = 0;
+let latestMode = '';
+let cachedScores = null; // Holds our Firebase data to save quota
+
+// Handle Authentication State
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        currentUser = user;
+        userInfo.textContent = `👋 Hello, ${user.displayName || user.email}`;
+        loginBtn.style.display = 'none';
+        logoutBtn.style.display = 'inline-block';
+        if (isFinished) {
+            saveScoreBtn.style.display = 'inline-block';
+            saveScoreBtn.textContent = 'Save Score';
+            saveScoreBtn.disabled = false;
+        }
+    } else {
+        currentUser = null;
+        userInfo.textContent = 'Not logged in';
+        loginBtn.style.display = 'inline-block';
+        logoutBtn.style.display = 'none';
+        chartContainer.style.display = 'none';
+        saveScoreBtn.style.display = 'none';
+    }
+});
+
+loginBtn.addEventListener('click', () => {
+    signInWithPopup(auth, provider).catch((error) => {
+        console.error("Login Error: ", error);
+        alert(`Login failed: ${error.message}`);
+    });
+});
+logoutBtn.addEventListener('click', () => signOut(auth));
 
 // Format the timer text (MM:SS)
 function updateTimerDisplay(seconds) {
@@ -93,6 +159,7 @@ resetBtn.addEventListener('click', () => {
     let minutes = parseFloat(timeInput.value) || 1;
     timeRemaining = Math.floor(minutes * 60);
     updateTimerDisplay(timeRemaining);
+    saveScoreBtn.style.display = 'none';
 });
 
 compareBtn.addEventListener('click', () => {
@@ -139,6 +206,15 @@ function runAudioModeAnalysis(typedText) {
     `;
     resultText.textContent = '✅ Transcription test finished!';
     resultText.className = 'success';
+    
+    latestWpm = wpm;
+    latestAccuracy = 0;
+    latestMode = 'audio';
+    if (currentUser) {
+        saveScoreBtn.style.display = 'inline-block';
+        saveScoreBtn.textContent = 'Save Score';
+        saveScoreBtn.disabled = false;
+    }
 }
 
 function runTextCompareModeAnalysis(typedText) {
@@ -190,6 +266,15 @@ function runTextCompareModeAnalysis(typedText) {
             Speed: <span>${wpm} WPM</span>
         </div>
     `;
+    
+    latestWpm = wpm;
+    latestAccuracy = accuracy;
+    latestMode = 'text';
+    if (currentUser) {
+        saveScoreBtn.style.display = 'inline-block';
+        saveScoreBtn.textContent = 'Save Score';
+        saveScoreBtn.disabled = false;
+    }
 
     text2.innerHTML = resultParts.join(' ');
 
@@ -201,6 +286,174 @@ function runTextCompareModeAnalysis(typedText) {
         resultText.className = 'error';
     }
 }
+
+// Save stats to Firestore database
+async function saveStatsToFirebase(wpm, accuracy, mode) {
+    if (!currentUser) return; // Only save if user is logged in
+    
+    try {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        const docData = {
+            userId: currentUser.uid,
+            wpm: wpm,
+            accuracy: parseFloat(accuracy),
+            mode: mode,
+            timestamp: serverTimestamp(),
+            dateStr: dateStr
+        };
+        await addDoc(collection(db, "stenopractice"), docData);
+        console.log("Stats successfully saved to database!");
+        
+        // Return a local copy of the data (replacing serverTimestamp with a local Date for caching)
+        return { ...docData, timestamp: now };
+    } catch (e) {
+        console.error("Error saving stats: ", e);
+        return null;
+    }
+}
+
+// Handle manual score saving
+saveScoreBtn.addEventListener('click', async () => {
+    if (!currentUser) return;
+    saveScoreBtn.textContent = 'Saving...';
+    saveScoreBtn.disabled = true;
+    const savedData = await saveStatsToFirebase(latestWpm, latestAccuracy, latestMode);
+    
+    // If we have cached data, inject the new score directly to save a database read!
+    if (savedData && cachedScores) {
+        cachedScores.push(savedData);
+    }
+    saveScoreBtn.textContent = 'Saved!';
+    
+    // Refresh graph automatically if it's currently open
+    if (chartContainer.style.display === 'block') {
+        loadProgressData();
+    }
+});
+
+async function loadProgressData() {
+    const rawDataContent = document.getElementById('raw-data-content');
+    rawDataContent.innerHTML = 'Preparing data...';
+
+    try {
+        if (!cachedScores) {
+            rawDataContent.innerHTML = 'Fetching data from Firebase...';
+            // Fetch ALL data from Firestore exactly once
+            const q = query(collection(db, "stenopractice"), orderBy("timestamp", "asc"));
+            const querySnapshot = await getDocs(q);
+            
+            cachedScores = [];
+            querySnapshot.forEach((doc) => {
+                cachedScores.push(doc.data());
+            });
+        } else {
+            console.log("Using cached data, saved Firebase reads!");
+        }
+
+        // Apply time filters locally instead of querying Firebase
+        let filteredData = cachedScores;
+        if (timeFilter.value !== 'all') {
+            const days = parseInt(timeFilter.value);
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days);
+            
+            filteredData = cachedScores.filter(data => {
+                if (!data.timestamp) return false;
+                // Convert Firebase timestamp to JavaScript Date for comparison
+                const recordDate = data.timestamp.toDate ? data.timestamp.toDate() : new Date(data.timestamp);
+                return recordDate >= cutoffDate;
+            });
+        }
+
+        const labels = [];
+        const wpmData = [];
+        const accData = [];
+        let rawHtml = '';
+
+        if (filteredData.length === 0) {
+            rawDataContent.innerHTML = 'No progress data found for this time period. Save a score first!';
+        } else {
+            filteredData.forEach((data) => {
+                labels.push(data.dateStr || 'N/A');
+                wpmData.push(data.wpm);
+                accData.push(data.accuracy);
+                rawHtml += `<div>[${data.dateStr || 'N/A'}] - Mode: <span style="color:#f1c40f;">${data.mode}</span> | WPM: <span style="color:#2ecc71;">${data.wpm}</span> | Accuracy: <span style="color:#3498db;">${data.accuracy}%</span></div>`;
+            });
+            rawDataContent.innerHTML = rawHtml;
+        }
+
+        // Draw Chart using Chart.js
+        if (progressChartInstance) progressChartInstance.destroy(); // Clear old chart
+
+        // Calculate dynamic width to enable scrolling for large datasets
+        const chartScrollArea = document.getElementById('chart-scroll-area');
+        const minWidthPerPoint = 50; // Guarantee at least 50px width per test score
+        const requiredWidth = labels.length * minWidthPerPoint;
+        chartScrollArea.style.width = requiredWidth > chartScrollArea.parentElement.clientWidth ? `${requiredWidth}px` : '100%';
+
+    const ctx = document.getElementById('progressChart').getContext('2d');
+    progressChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Typing Speed (WPM)',
+                    data: wpmData,
+                    type: 'line', // Changed to line chart
+                    backgroundColor: 'rgba(52, 152, 219, 1)',
+                    borderColor: 'rgba(41, 128, 185, 1)',
+                    borderWidth: 3
+                },
+                {
+                    label: 'Accuracy (%)',
+                    data: accData,
+                    // Defaults to 'bar' (box) based on the main chart type
+                    backgroundColor: 'rgba(39, 174, 96, 0.7)',
+                    borderColor: 'rgba(39, 174, 96, 1)',
+                    borderWidth: 1,
+                    yAxisID: 'y1',
+                    maxBarThickness: 30 // This makes the bars noticeably thinner!
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: 'WPM' } },
+                y1: { beginAtZero: true, position: 'right', max: 100, title: { display: true, text: 'Accuracy %' } }
+            }
+        }
+    });
+
+    } catch (error) {
+        console.error("Error fetching data:", error);
+        rawDataContent.innerHTML = `<span style="color: #e74c3c;">Error fetching data: ${error.message}</span>`;
+    }
+}
+
+// Button logic to display the UI and load the graph
+progressBtn.addEventListener('click', () => {
+    if (!currentUser) {
+        alert("Please login with Google first to view and save your progress!");
+        return;
+    }
+
+    // Toggle chart visibility
+    chartContainer.style.display = chartContainer.style.display === 'none' ? 'block' : 'none';
+    if (chartContainer.style.display === 'block') {
+        loadProgressData();
+    }
+});
+
+// Automatically refresh the graph when you change the dropdown filter
+timeFilter.addEventListener('change', () => {
+    if (chartContainer.style.display === 'block') {
+        loadProgressData();
+    }
+});
 
 // Initialize the display right away
 let initialMinutes = parseFloat(timeInput.value) || 1;
